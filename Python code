@@ -1,0 +1,278 @@
+
+#SIN FUERZA, COMO EL PAPER
+
+import numpy as np
+from numpy import cos, pi
+import math
+import itertools
+from matplotlib import pyplot as plt
+from time import process_time
+from numba import jit,njit
+
+time_start = process_time()
+
+nwrite=20
+eps=0.01
+h = 0.001
+heps=h/eps
+a = 1.05
+A=0.1
+D=0.06
+T=7
+Omega=2*pi/T
+
+h_sqrt=np.sqrt(h)
+tf=100
+nsteps=int(tf/(h*nwrite))
+
+@jit
+def q1(x,y):
+    return x-x**3/3-y
+@jit
+def q2(x):
+    return x+a
+
+
+# MILSHTEIN ALGORITHM
+
+time2=np.zeros(nsteps)
+for i in range(nsteps):
+    time2[i]=h*i*nwrite
+
+
+
+
+@jit   
+def traj(nsteps,nwrite):
+    x = 0
+    y=0
+    t = 0
+    X=np.zeros(nsteps)
+    Y=np.zeros(nsteps)
+    print('lets begin')
+    for i in range(nsteps):
+        for j in range(nwrite):
+            uh=h_sqrt*np.random.normal()
+            t=t+h
+            y = y + h * q2(x) + D* uh
+            x=x+heps*q1(x,y)
+        print('estamos en:',i, 'de', nsteps)
+        X[i]=x
+        Y[i]=y
+    return X,Y
+
+print('empezamos')
+xy=traj(nsteps,nwrite)        
+       
+
+plt.plot(xy[0],xy[1])
+plt.xlabel(r'$x$', fontsize=15)
+plt.ylabel(r'$y$', fontsize=15)
+plt.show()
+
+plt.plot(time2,xy[1])
+plt.ylabel(r'$y$', fontsize=15)
+plt.xlabel(r'$t$', fontsize=15)
+plt.show()
+
+time_elapsed = (process_time() - time_start)
+print(time_elapsed)  
+
+#guardar ficheros para Corr
+
+
+
+
+
+
+#-----------------------------------------------------------------------
+#CON FUERZA
+
+import numpy as np
+from numpy import cos, pi, sin
+import math
+import itertools
+from matplotlib import pyplot as plt
+from time import process_time
+from numba import jit,njit
+
+time_start = process_time()
+
+nwrite=20
+eps=0.01
+h = 0.001
+heps=h/eps
+a = 1.05
+A=0.1
+D=0.06
+T=3.4
+Omega=2*pi/T
+
+h_sqrt=np.sqrt(h)
+tf=11000
+nsteps=int(tf/(h*nwrite))
+
+@jit
+def q1(x,y):
+    return x-x**3/3-y
+@jit
+def q2(x,t):
+    return x+a+A*cos(Omega*t)
+
+
+# MILSHTEIN ALGORITHM
+
+time2=np.zeros(nsteps)
+for i in range(nsteps):
+    time2[i]=h*i*nwrite
+
+
+
+
+@jit   
+def trajF(nsteps,nwrite):
+    x = 0
+    y=0
+    t = 0
+    X=np.zeros(nsteps)
+    Y=np.zeros(nsteps)
+    print('lets begin')
+    for i in range(nsteps):
+        for j in range(nwrite):
+            uh=h_sqrt*np.random.normal()
+            t=t+h
+            y = y + h * q2(x,t) + D* uh
+            x=x+heps*q1(x,y)
+        print('estamos en:',i, 'de', nsteps)
+        X[i]=x
+        Y[i]=y
+    return X,Y
+
+print('empezamos')
+
+file=open("Corrdatos_fuerzaD006.txt", "w")
+
+xy=trajF(nsteps,nwrite)        
+
+np.savetxt(file, np.c_[xy[0],xy[1]])
+
+file.close()
+
+
+
+#FUNCION CORRELACION
+
+
+Ns=550
+nwrite=20
+eps=0.01
+h = 0.001
+heps=h/eps
+a = 1.05
+A=0.1
+D=0.07
+T=7
+Omega=2*pi/T
+tf=11000
+h_sqrt=np.sqrt(h)
+nsteps=int(tf/(h*nwrite))
+
+print('empezamos')
+df=pd.read_csv("Corrdatos_fuerzaD010.txt", sep=" ", header=None, names=['x','y'])
+y=np.array(list(df['y']))
+print('fet import de fitxer')
+
+
+@jit
+def Correl(nsteps, Ns):
+    Corr=np.zeros(Ns)
+    media=np.mean(y)
+    variance=np.var(y)
+    for m in range(Ns):
+        suma=0
+        for p in range(nsteps):
+            if p+m <nsteps:
+                suma+=(y[p]-media)*(y[p+m]-media) #increase of 0.02 in s is increase of 1 stored step
+        print('estamos en',m, 'de', Ns)
+        Corr[m]=suma/(nsteps*variance)
+    
+    return Corr
+    
+corr1010=Correl(nsteps,Ns)    
+
+s=np.linspace(0,11,Ns)
+
+plt.plot(s,corr1010**2)
+plt.xlabel(r'$\tau$', fontsize=15)
+plt.ylabel(r'$C^2(\tau)$', fontsize=15)
+plt.plot([], label=r'$D=0.09$', color='w')
+plt.legend(fontsize=13)
+plt.show()
+    
+#INTEGRACION TRAPECIOS CORRELACION^2
+def trapz(f,a,b,N):
+    integ=0
+    x = np.linspace(a,b,N+1) # N+1 points make N subintervals
+    for i in range(1,len(f)-1):
+        y_right = f[i+1]
+        y_left = f[i-1]
+        dx = (b - a)/N
+        integ += (y_right + y_left)*(dx/2)
+    
+    return integ
+
+#LAS TAUS SON 
+trapz(corr12**2,0,18,N=901)
+trapz(corr10**2,0,20,N=1001)
+trapz(corr08**2,0,22,N=1101)
+trapz(corr06**2,0,13,N=651)
+
+
+Ds=[0.06,0.08,0.10,0.12]
+taus=[0.8275691459659845,0.8849585050459017, 0.872270142333145,0.7620862583685564]
+
+plt.plot(Ds,taus, 'o', color='k', markersize=3)
+plt.errorbar(Ds,taus, yerr=errors, fmt='none', color='k', capsize=4)
+plt.xlabel(r'$D$', fontsize=15)
+plt.ylabel(r'$\tau$', fontsize=15)
+z=np.polyfit(Ds, taus, 3)
+Ds2=np.linspace(0.06,0.12,100)
+plt.plot(Ds2, z[0]*Ds2**3+z[1]*Ds2**2+z[2]*Ds2+z[3], 'k--')
+plt.show()
+
+#HOW ERRORS ARE COMPUTED 
+s1=np.linspace(0,13,650)
+s2=np.linspace(0,22,1100)
+s3=np.linspace(0,20,1000)
+s4=np.linspace(0,18,900)
+
+
+secderiv6=[]
+for i in range(1,len(corr6)-1):
+    secderiv6.append((corr6[i-1]**2 - 2*corr6[i]**2 + corr6[i+1]**2)/0.0004)
+    
+print(min(secderiv6))
+
+secderiv10=[]
+for i in range(1,len(corr10)-1):
+    secderiv10.append((corr10[i-1]**2 - 2*corr10[i]**2 + corr10[i+1]**2)/0.0004)
+    
+print(min(secderiv10))
+
+secderiv12=[]
+for i in range(1,len(corr12)-1):
+    secderiv12.append((corr12[i-1]**2 - 2*corr12[i]**2 + corr12[i+1]**2)/0.0004)
+    
+print(min(secderiv12))
+
+errors=[]
+bs=[13,22,20,18]
+Ms=[10.504095258981327,11.141026077280403,11.742949662402468,12.068255437767405]
+for i in range(4):
+    errors.append((Ms[i]*bs[i])/30000)
+    
+print(errors)
+
+
+
+
